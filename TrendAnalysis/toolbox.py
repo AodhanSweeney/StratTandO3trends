@@ -383,26 +383,26 @@ def monthly_circ_regr(anomalies_ts, anomalous_temp_in_box_, s1):
 
             try:
                 # get raw trend
-                raw_trend_sig = toolbox.monthly_trend_finder(time_non_nans, anom_non_nans)
+                raw_trend_sig = monthly_trend_finder(time_non_nans, anom_non_nans)
 
                 # get circulation trend
                 #######################################################
                 # first detrend data
-                anom_non_nans_detrend = toolbox.detrender(time_non_nans, anom_non_nans)
-                temp_in_box_detrend = toolbox.detrender(time_non_nans, anomalous_temp_in_box)
+                anom_non_nans_detrend = detrender(time_non_nans, anom_non_nans)
+                temp_in_box_detrend = detrender(time_non_nans, anomalous_temp_in_box)
 
                 # then get projection and circulation
                 circ_proj = stats.linregress(temp_in_box_detrend, anom_non_nans_detrend)
                 circ_recreation = circ_proj[1] + circ_proj[0]*anomalous_temp_in_box
                 circ_trend = stats.linregress(time_non_nans, circ_recreation)[0]
-                _, circ_significance = toolbox.monthly_trend_finder(temp_in_box_detrend, 
+                _, circ_significance = monthly_trend_finder(temp_in_box_detrend, 
                                                             anom_non_nans_detrend)
                 circ_trend_sig = [circ_trend, circ_significance]
                 #######################################################
 
                 # get residual trend
                 residual = anom_non_nans - circ_recreation
-                res_trend_sig = toolbox.monthly_trend_finder(time_non_nans, residual)
+                res_trend_sig = monthly_trend_finder(time_non_nans, residual)
 
                 # append to mlr
                 mlr_by_lat.append([raw_trend_sig, circ_trend_sig, res_trend_sig])
@@ -419,3 +419,81 @@ def monthly_circ_regr(anomalies_ts, anomalous_temp_in_box_, s1):
         map_mlr.append(mlr_by_lat)
         
     return(np.array(map_mlr))
+
+def monthly_corr_map(anomalies_ts, anomalous_temp_in_box_, s1):
+    """
+    This function takes in an array of timeseries and obtains the correlation map
+    between these timeseries and the AWLS timeseries, for just one month
+    ===============================================================================
+    anomalies_ts: array of anomaly timeseries
+    
+    anomalous_temp_in_box_: AWLS timeseries
+    
+    s1: month in which circulation regression will be applied
+    """
+    # set map to append data
+    r_map = []
+    for height_index in range(np.shape(temperature_anomalies_ts)[1]):
+        r_by_lat = []
+        for lat_index in range(np.shape(temperature_anomalies_ts)[2]):
+            
+            # select timeseries
+            anom_ts = anomalies_ts[:,height_index, lat_index]
+            
+            # create time and calendars
+            time = np.arange(2002, 2023, 1/12)/10
+            time_cal = np.reshape(time, (21,12))
+            anom_cal = np.reshape(anom_ts, (21,12))
+            anomalous_temp_in_box_cal = np.reshape(anomalous_temp_in_box_, (21,12))
+
+            # create seasonal timeseries
+            time = np.transpose([time_cal[:,s1]]).ravel()
+            anom_ts = np.transpose([anom_cal[:,s1]]).ravel()
+            anomalous_temp_in_box = np.transpose([anomalous_temp_in_box_cal[:,s1]]).ravel()
+
+            # find non nan values
+            anom_non_nans = anom_ts[~np.isnan(anom_ts)]
+            time_non_nans = time[~np.isnan(anom_ts)]
+            anomalous_temp_in_box = anomalous_temp_in_box[~np.isnan(anom_ts)]
+
+            if len(anom_non_nans) > 2:
+                # get raw trend
+                raw_trend_sig = monthly_trend_finder(time_non_nans, anom_non_nans)
+
+                # get correlations for month trend
+                #######################################################
+                # detrend the data for correlation so that you don't inflate correlation
+                anom_non_nans_detrend = detrender(time_non_nans, anom_non_nans)
+                temp_in_box_detrend = detrender(time_non_nans, anomalous_temp_in_box)
+
+                # get N-samples and correlation coefficient
+                N = len(anom_non_nans_detrend)
+                r = stats.pearsonr(anom_non_nans_detrend, temp_in_box_detrend)[0]
+
+                # find significance based on correlation (and auto-correlation)
+                r1_autocorrelation = stats.pearsonr(anom_non_nans_detrend[1:], anom_non_nans_detrend[:-1])[0]
+                r2_autocorrelation = stats.pearsonr(temp_in_box_detrend[1:], temp_in_box_detrend[:-1])[0]
+                N_star = N*((1-r1_autocorrelation*r2_autocorrelation)/
+                            (1+r1_autocorrelation*r2_autocorrelation))
+                
+                # find critical t-values
+                tcrit = stats.t.ppf(1-0.025, N_star)
+                t = (r*np.sqrt(N_star - 2))/(np.sqrt(1 - r**2))
+
+                # test for significance
+                if abs(t) - tcrit > 0:
+                    significant = 1
+                else:
+                    significant = 0
+                #######################################################
+
+                # append to mlr
+                r_by_lat.append([r, significant])
+                
+            else:
+            
+                # create and append nan array
+                r_by_lat.append([np.NaN, np.NaN])
+                
+        r_map.append(r_by_lat)
+    return(np.array(r_map))
