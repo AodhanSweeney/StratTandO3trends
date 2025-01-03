@@ -433,9 +433,9 @@ def monthly_corr_map(anomalies_ts, anomalous_temp_in_box_, s1):
     """
     # set map to append data
     r_map = []
-    for height_index in range(np.shape(temperature_anomalies_ts)[1]):
+    for height_index in range(np.shape(anomalies_ts)[1]):
         r_by_lat = []
-        for lat_index in range(np.shape(temperature_anomalies_ts)[2]):
+        for lat_index in range(np.shape(anomalies_ts)[2]):
             
             # select timeseries
             anom_ts = anomalies_ts[:,height_index, lat_index]
