@@ -471,8 +471,10 @@ def monthly_corr_map(anomalies_ts, anomalous_temp_in_box_, s1):
                 r = stats.pearsonr(anom_non_nans_detrend, temp_in_box_detrend)[0]
 
                 # find significance based on correlation (and auto-correlation)
-                r1_autocorrelation = stats.pearsonr(anom_non_nans_detrend[1:], anom_non_nans_detrend[:-1])[0]
-                r2_autocorrelation = stats.pearsonr(temp_in_box_detrend[1:], temp_in_box_detrend[:-1])[0]
+                r1_autocorrelation = stats.pearsonr(anom_non_nans_detrend[1:], 
+                                                    anom_non_nans_detrend[:-1])[0]
+                r2_autocorrelation = stats.pearsonr(temp_in_box_detrend[1:], 
+                                                    temp_in_box_detrend[:-1])[0]
                 N_star = N*((1-r1_autocorrelation*r2_autocorrelation)/
                             (1+r1_autocorrelation*r2_autocorrelation))
                 
@@ -490,6 +492,67 @@ def monthly_corr_map(anomalies_ts, anomalous_temp_in_box_, s1):
                 # append to mlr
                 r_by_lat.append([r, significant])
                 
+            else:
+            
+                # create and append nan array
+                r_by_lat.append([np.NaN, np.NaN])
+                
+        r_map.append(r_by_lat)
+    return(np.array(r_map))
+
+def monthly_regr_map(anomalies_ts, anomalous_temp_in_box_, s1):
+    """
+    This function takes in an array of timeseries and obtains the regression map
+    between these timeseries and the AWLS timeseries, for just one month
+    ===============================================================================
+    anomalies_ts: array of anomaly timeseries
+    
+    anomalous_temp_in_box_: AWLS timeseries
+    
+    s1: month in which circulation regression will be applied
+    """
+    
+    r_map = []
+    for height_index in range(np.shape(anomalies_ts)[1]):
+        r_by_lat = []
+        for lat_index in range(np.shape(anomalies_ts)[2]):
+            
+            # select timeseries
+            anom_ts = anomalies_ts[:,height_index, lat_index]
+            
+            # create time and calendars
+            time = np.arange(2002, 2023, 1/12)/10
+            time_cal = np.reshape(time, (21,12))
+            anom_cal = np.reshape(anom_ts, (21,12))
+            anomalous_temp_in_box_cal = np.reshape(anomalous_temp_in_box_, (21,12))
+
+            # create seasonal timeseries
+            time = np.transpose([time_cal[:,s1]]).ravel()
+            anom_ts = np.transpose([anom_cal[:,s1]]).ravel()
+            anomalous_temp_in_box = np.transpose([anomalous_temp_in_box_cal[:,s1]]).ravel()
+
+            # find non nan values
+            anom_non_nans = anom_ts[~np.isnan(anom_ts)]
+            time_non_nans = time[~np.isnan(anom_ts)]
+            anomalous_temp_in_box = anomalous_temp_in_box[~np.isnan(anom_ts)]
+
+            if len(anom_non_nans) > 2:
+                # get regression coefficents that are used in circulation regression
+                #######################################################
+                # first detrend data
+                anom_non_nans_detrend = detrender(time_non_nans, anom_non_nans)
+                temp_in_box_detrend = detrender(time_non_nans, anomalous_temp_in_box)
+
+                # then get projection and circulation
+                regr = stats.linregress(temp_in_box_detrend, anom_non_nans_detrend)
+                regr_coef = regr[0]
+                _, significance = monthly_trend_finder(temp_in_box_detrend, 
+                                                            anom_non_nans_detrend)
+                [regr_coef, significance]
+                #######################################################
+
+                # append to mlr
+                r_by_lat.append([regr_coef, significance])
             else:
             
                 # create and append nan array
