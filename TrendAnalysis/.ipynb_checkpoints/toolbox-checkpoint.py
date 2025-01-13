@@ -245,7 +245,7 @@ def annual_circ_regr(anomalies_ts, anomalous_temp_in_box):
             tbox_non_nans = anomalous_temp_in_box[~np.isnan(anom_ts)]
             
             # if there is more than one value, circulation regression can continue
-            if len(anom_non_nans) > 1:
+            if len(anom_non_nans) > 2:
                 anom_detrend = detrender(time_non_nans, anom_non_nans)
                 temp_in_box_detrend = detrender(time_non_nans, tbox_non_nans)
                 
